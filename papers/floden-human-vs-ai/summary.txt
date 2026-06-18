@@ -1,0 +1,37 @@
+Grading exams using large language models: A comparison between human and AI
+grading of exams in higher education using ChatGPT
+Jonas Flodén. British Educational Research Journal 51:201-224 (2025). Open access.
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+A direct head-to-head: ChatGPT-3.5 vs the original human teachers on three real
+Master's-level logistics exams (University of Gothenburg). Zero-shot ROLE PROMPT
+("I want you to act as a university professor grading a written exam. Score on a
+scale of 0 to X..."), each answer scored 3x in fresh chats. Includes teacher
+interviews about the AI's grades.
+
+KEY FINDINGS:
+- 463 responses, 1,389 gradings. 70% of AI grades within +/-10% of teacher; only 31%
+  within +/-5%. Exact letter-grade agreement just 30%, but +45% landed adjacent.
+- AI scored slightly higher on average (63.6% vs 60.4%) and compressed toward the
+  MIDDLE: 73% of AI scores fell in grades B-E vs 54% for teachers (few extremes).
+- Inconsistent: repeated grading gave a DIFFERENT grade for ~40-45% of students;
+  Cohen's kappa on grade only 0.139 (weighted 0.409).
+- Worst on questions tied to specific lecture content / out-of-scope answers: AI
+  scored higher on 79% of large-discrepancy answers but was "more correct" in only
+  10%. Main failure = not recognizing an answer was off-scope.
+- Providing example "excellent answers" barely helped (avg score moved only 1.8%).
+- Teachers were surprised how well it matched and felt it could "pass" for human
+  grading, but did not trust it for real use yet.
+
+RELEVANCE TO THE PROJECT:
+- Q1 (better/faster?) -- PRIMARY. The cleanest real-world human-vs-AI comparison here.
+  Answer: plausible-looking but mediocre at exact grades, and inconsistent. Note: the
+  paper frames grading as "boring/tedious" and AI returns scores "in seconds," but
+  gives NO quantified timing -- so "faster" is assumed, not measured (your opening).
+- Q2 (schema/role) -- secondary: uses role prompting and discusses that detailed
+  rubrics/course context would likely improve accuracy (their rubric wasn't testable).
+
+CAVEATS:
+- Single institution, one subject area, ChatGPT-3.5 (now dated); zero-shot only.
+- Human grader is the benchmark, yet two humans can disagree as much (cites kappa
+  0.15-0.61 between human double-markers).

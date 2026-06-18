@@ -1,0 +1,33 @@
+AutoSCORE: Enhancing Automated Scoring with Multi-Agent Large Language Models
+via Structured Component Recognition
+arXiv:2509.21910 (2025).
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+Proposes a two-agent pipeline that separates "find the evidence" from "assign the
+score." A Component-Extraction agent reads the response + rubric and emits a
+structured JSON object Z; a Scoring agent then assigns the score using only Z, the
+response, and the rubric. This forces reasoning through an explicit evidence
+checkpoint instead of one free-text judgment.
+
+KEY FINDINGS:
+- Structured representation Z is task-specific: each rubric dimension becomes a typed
+  field -- a Boolean flag, a count, or the original text span. Example (science):
+  {"valid_conclusion": true, "conclusions": [...], "design_improvements": [...],
+   "design_count": 2, "validity_count": 1}.
+- Evaluated on 6,656 responses (ASAP-SAS short answers + ASAP-AES essays).
+- Gains over direct-prompt baselines: Science (GPT-4o) accuracy 0.588->0.632;
+  English QWK 0.540->0.629 (+16.5%); essay set QWK 0.251->0.344 (+37%);
+  LLaMA-3.1-8B QWK 0.150->0.261 (+74%).
+- Gains are LARGEST on complex multi-dimensional rubrics and on smaller models.
+
+RELEVANCE TO THE PROJECT:
+- Q2 (schema/role-based, not natural-language-reliant) -- PRIMARY. This is essentially
+  a working prototype of your core idea: force the model through a structured,
+  machine-readable JSON schema before scoring. Strongest design template to build on.
+- Q3 (citing components) -- secondary: the extraction agent literally identifies and
+  records rubric-relevant components/spans of the response.
+
+CAVEATS:
+- Paper does NOT publish full prompt templates (only the JSON schema + role
+  descriptions), so you'd reconstruct prompts from the JSON contract.
+- Schema is hand-designed per rubric/domain -- scales with rubric complexity.

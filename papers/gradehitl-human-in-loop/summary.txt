@@ -1,0 +1,34 @@
+LLM-Based Automated Grading with Human-in-the-Loop
+Yucheng Chu, Hang Li, Kaiqi Yang, Yasemin Copur-Gencturk, Jiliang Tang.
+arXiv:2504.05239 (v3, Dec 2025). Michigan State Univ. / USC.
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+Proposes GradeHITL, a human-in-the-loop framework for automatic short-answer grading
+(ASAG). Instead of grading fully autonomously, the LLM ACTIVELY POSES rubric-clarifying
+questions to a human expert; a reinforcement-learning (PPO) selector keeps only the
+high-value Q&A; the answers iteratively refine the grading rubric. Built on the prior
+GradeOpt rubric-optimization framework. Three components: Grading, Inquiring, Optimizing
+(Retriever + Reflector + Refiner agents).
+
+KEY FINDINGS:
+- Dataset: math-teaching pedagogical short answers, 1,376 responses across 6 questions,
+  3-point scale, expert-annotated. All agents = GPT-4o, zero-shot.
+- GradeHITL beats every baseline (RoBERTa, SBERT, naive prompt, APO, GradeOpt) on
+  Accuracy, Cohen's kappa, and QWK across ALL 6 questions. Example (Q1): GradeOpt
+  acc 0.86 / kappa 0.68 -> GradeHITL 0.89 / 0.71; gains across the board.
+- The RL-based Q&A selector beats random and semantic-similarity selection on all 6
+  questions -- which feedback you incorporate matters, not just that you incorporate it.
+- Core insight: rubric texts contain jargon/domain terms LLMs misread from labeled
+  examples alone; targeted human clarification fixes the bottleneck that fully-automated
+  prompting cannot.
+
+RELEVANCE TO THE PROJECT:
+- Q1 (better/faster?) -- PRIMARY for the "ASSISTED" reading: AI-assisted (human-in-loop)
+  beats AI-alone. Strongest design for the collaboration angle rather than replacement.
+- Q2 (schema/role-based) -- secondary: treats the rubric as an optimizable, structured
+  object (question stem / key concept / scoring rubric / adaptation rules) refined over
+  iterations -- a schema-centric view of grading.
+
+CAVEATS:
+- Short-answer grading (not full essays); narrow math-pedagogy domain.
+- Requires expert availability + RL training; heavier to stand up than prompting alone.

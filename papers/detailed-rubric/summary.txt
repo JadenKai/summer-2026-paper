@@ -1,0 +1,32 @@
+Do We Need a Detailed Rubric for Automated Essay Scoring using Large Language Models?
+Lui Yoshida. arXiv:2505.01035 (2025). University of Tokyo.
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+Tests how much rubric DETAIL actually matters for LLM scoring, and at what token cost.
+Compares three prompt conditions -- full rubric (375 words), simplified rubric (78
+words), and no rubric ("rate 0-5") -- across four LLMs on the full TOEFL11 corpus.
+
+KEY FINDINGS:
+- Dataset: TOEFL11, 12,100 essays, expert ratings collapsed to high/medium/low.
+- Models: Claude 3.5 Haiku, Gemini 1.5 Flash, GPT-4o-mini, Llama 3 70B Instruct.
+- For 3 of 4 models the SIMPLIFIED rubric matched the FULL rubric on QWK (differences
+  <0.01), while using far fewer tokens: full ~2x vs simplified ~1.2x the no-rubric
+  baseline.
+- Having ANY rubric beat NO rubric for those 3 models.
+- Gemini 1.5 Flash was the exception -- QWK DECREASED as rubric detail increased (it
+  over-scored), showing model-specific behavior. Evaluate per model.
+- All models topped out around QWK ~0.6, below the human-expert range of 0.8-0.9 ->
+  "not yet ready for practical [high-stakes] use" via prompting alone; fine-tuning
+  suggested for real deployment.
+
+RELEVANCE TO THE PROJECT:
+- Q2 (schema/role-based) -- PRIMARY. Directly informs HOW MUCH rubric/schema detail to
+  encode: a concise structured rubric is usually as accurate as an elaborate one and
+  far more token-efficient. Argues for keeping your schema lean. But validate per model
+  (the schema that helps one LLM can hurt another).
+- Q1 (better/faster?) -- secondary: prompting-only LLMs (~QWK 0.6) are below human
+  expert level; supports "not yet a clean replacement."
+
+CAVEATS:
+- Single dataset (TOEFL11) and a 3-point scale; older non-reasoning models.
+- "Detail" varied only as full vs 78-word summary -- not a fine-grained sweep.

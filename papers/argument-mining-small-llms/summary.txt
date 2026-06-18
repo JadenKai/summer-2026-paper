@@ -1,0 +1,41 @@
+Leveraging Small LLMs for Argument Mining in Education: Argument Component
+Identification, Classification, and Assessment
+Lucile Favero, Juan Antonio Perez-Ortiz, Tanja Kaser, Nuria Oliver.
+arXiv:2502.14389 (v2, Nov 2025). ELLIS Alicante / Univ. Alacant / EPFL.
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+Tests whether small, local, open-source LLMs can do the full argument-mining pipeline
+on student essays: (1) SEGMENT the essay into argument components, (2) CLASSIFY each
+into 7 types (Lead, Position, Claim, Counterclaim, Rebuttal, Evidence, Concluding
+Statement), (3) ASSESS quality (Ineffective/Adequate/Effective). Few-shot prompting
+vs LoRA/QLoRA fine-tuning; compared to encoder baselines and GPT-4o-mini.
+
+KEY FINDINGS:
+- Data: Kaggle "Feedback Prize - Effectiveness" (PERSUADE 2.0 subset), grade 6-12 US
+  essays; test set 419 essays / 3,711 arguments. Models: Qwen2.5-7B, Llama3.1-8B,
+  Gemma2-9B.
+- Segmentation: best Llama3.1-8B fine-tuned macro-F1 = 87.52 (+18 pts over Longformer).
+- Type classification: 79.74 F1 with GOLD segmentation, but only 51.45 F1 with the
+  model's own INFERRED segmentation. Quality assessment weak (~44.56 F1) for everyone.
+- Per-type F1 (inferred seg): Concluding 74.4, Evidence 67.1, Lead 64.6 (high recall/
+  low precision -> over-labels), Position 55.6, Claim 51.8, Counterclaim 50.7,
+  Rebuttal 47.5. Best at conclusions/evidence; worst at rebuttals/counterclaims.
+- SEGMENTATION IS THE BOTTLENECK: B-token (component start) precision only 66%, and
+  boundary errors cascade -- many Claims/Evidence are lost to the "Echec" mismatch
+  column, dragging down classification.
+- Prompts are role-based ("You are a strict AI evaluator specializing in detecting the
+  type of argument components...") with a token-insertion schema (<SEP>, then
+  <Type, Quality> labels) rather than free prose. Fine-tuning >> few-shot for seg/type.
+
+RELEVANCE TO THE PROJECT:
+- Q3 (citing components) -- PRIMARY. Direct evidence on how well an LLM identifies/cites
+  essay components: good in the gold-segmentation regime (~0.80), but ~0.51 end-to-end.
+- Q4 (MLA parser) -- PRIMARY justification. Because segmentation is the dominant error
+  source, supplying CLEAN, pre-segmented structure (what your MLA parser would do) should
+  move classification from the ~0.51 (inferred) regime toward the ~0.80 (gold) regime.
+  This is the single strongest argument in the set for why the parser matters.
+- Q2 (schema/role) -- secondary: the role-based prompt + token schema mirror your design.
+
+CAVEATS:
+- English high-school writing only (PERSUADE); generalization unknown.
+- Quality-assessment ceiling is low for all methods, partly due to noisy annotations.

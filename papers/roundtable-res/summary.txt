@@ -1,0 +1,37 @@
+LLM Agents at the Roundtable: A Multi-Perspective and Dialectical Reasoning
+Framework for Essay Scoring
+Jinhee Jang, Ayoung Moon, Minkyoung Jung, YoungBin Kim, Seung Jin Lee.
+arXiv:2509.14834 (2025). NC AI / Chung-Ang University.
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+Proposes RES (Roundtable Essay Scoring), a zero-shot multi-agent framework. Stage 1:
+several persona evaluator agents (e.g., English teacher, social-studies teacher) each
+auto-build a trait rubric and do rationale-first scoring. Stage 2: a moderator runs a
+simulated "roundtable" dialectical discussion to reconcile them into one holistic score.
+
+KEY FINDINGS:
+- Dataset: ASAP (12,978 essays, grades 7-10, 8 prompts); 10% test split (1,298 essays).
+- vs Vanilla zero-shot prompting (avg QWK): ChatGPT 0.364 -> 0.483 (+13.19%);
+  Claude 0.370 -> 0.499 (+34.86%). Also beats Multi-Trait Specialization (MTS), CoT,
+  Voting, Self-Consistency.
+- Notably, RES uses NO human-provided rubric -- each agent generates its own -- yet
+  beats MTS which relies on human ASAP rubrics.
+- Ablations: 4 agents x 3 traits (=12 criteria) is the sweet spot; gains diminish past
+  that. Dialectical Reasoning adds ~+12 pts on top of multi-agent alone.
+- Cost/latency: 0.6s/$0.0021 (single prompt) -> 1.7 min/$0.01 per essay (RES) -- an
+  explicit speed/accuracy trade-off.
+- Appendix D gives the FULL role-based JSON prompt templates: persona creation, rubric
+  construction, rationale-first evaluation, and moderator synthesis -- all enforcing
+  JSON-structured output (personas, traits w/ score criteria, trait_scores w/ rationale).
+
+RELEVANCE TO THE PROJECT:
+- Q2 (schema/role-based, not natural-language-reliant) -- PRIMARY. The clearest
+  ready-to-copy exemplar of role-based prompting + structured JSON schemas for grading
+  (the appendix prompts are directly adaptable to your design).
+- Q1 (better/faster?) -- secondary: meaningful accuracy gains BUT it is ~170x slower and
+  ~5x more expensive per essay -- concrete evidence that "better" can cost "slower."
+
+CAVEATS:
+- Proprietary API models; open-source models (Qwen3-4B/8B) followed the structured
+  prompts poorly -> output-parsing failures.
+- Scoring only (no feedback); 10% test split; absolute QWK still ~0.48-0.50.

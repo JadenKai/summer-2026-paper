@@ -1,0 +1,38 @@
+Agreement Between Large Language Models and Human Raters in Essay Scoring:
+A Research Synthesis
+Hongli Li, Che-Han Chen, Kevin Fan, Chiho Young-Johnson, Soyoung Lim, Yali Feng
+Georgia State University. Book chapter, "Building Knowledge of Generative AI in
+Applied Linguistics" (Iowa State University Digital Press, 2026); presented 2025.
+--------------------------------------------------------------------------------
+WHAT IT DOES:
+A PRISMA systematic review synthesizing 65 published + unpublished studies (Jan
+2022 - Aug 2025) that report numeric agreement between LLM-generated essay scores
+and human raters. It does not run its own scoring experiment; it characterizes the
+distribution of agreement and what moves it.
+
+KEY FINDINGS:
+- QWK across studies ranged from 0.00 (Kim 2025) to 0.97 (Oketch 2025); most >0.30.
+  Pearson/Spearman ranged 0.05-0.91, many between 0.50-0.80.
+- Variation WITHIN a single study was often as large as across studies (e.g., Lee
+  et al. 2024: QWK 0.03-0.59 just by changing prompt/model/dataset).
+- Operational benchmark for automated scoring is QWK >= 0.70 (Ramineni 2012); many
+  studies fall below it. Authors conclude LLM-human agreement is "highly
+  context-dependent" and cannot yet be declared reliable enough to replace humans.
+- Descriptive (not causal) tendencies: GPT-4 > GPT-3.5; detailed rubrics + example
+  essays raise agreement; standardized datasets (ASAP/TOEFL11) score higher than
+  messy classroom data. Analytic rubrics (n=37) used more than holistic (n=26).
+- 38/65 studies reported QWK; field dominated by GPT models; mostly English, L2,
+  undergrad/secondary writers. Young writers (elementary) badly underrepresented.
+
+RELEVANCE TO THE PROJECT:
+- Q1 (better/faster?) -- PRIMARY. Strongest single citation for the honest answer:
+  "it depends heavily on rubric, model, and task," not a clean yes. Use to frame the
+  whole project and to argue the field's inconsistent reporting is itself a gap.
+- Q2 (schema/role) -- secondary: confirms detailed rubrics + examples help, which
+  motivates encoding rubric structure rather than free-form prompts.
+- Note: contains NO speed/time data -- pure agreement. Reinforces that "faster" is
+  asserted but rarely measured (an opening for your work).
+
+CAVEATS:
+- Heterogeneous metrics/reporting; authors deliberately did NOT compute pooled means.
+- Human ratings treated as ground truth despite known inter-rater disagreement.

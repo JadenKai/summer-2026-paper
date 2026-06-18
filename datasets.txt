@@ -1,0 +1,161 @@
+DATASETS FOR THE RUBRIC-STYLE GRADING PAPER
+============================================
+Compiled 2026-06-11. Links + pricing verified via web search on that date.
+Organized by access: FREELY ACCESSIBLE first, PAID at the bottom (with prices).
+
+Task mapping (paper's four questions):
+  - Rubric / holistic scoring (Q1, Q2)         -> ASAP 2.0, ASAP, DREsS, IELTS sets
+  - Analytic / multi-trait schema fields (Q2)  -> DREsS, ELLIPSE, ASAP++, IELTS (5 dims)
+  - Component identification & citing (Q3, Q4) -> PERSUADE / Feedback-Prize
+  - MLA-parser preprocessing (Q4)              -> see NOTE at bottom (no off-the-shelf MLA set)
+
+Suggested core set (all FREE):
+  1) ASAP 2.0          -> large modern holistic benchmark (~24k essays, CC BY)
+  2) DREsS             -> rubric-based, 3 analytic rubrics (content/org/language) — best Q2 fit
+  3) PERSUADE          -> argument components + effectiveness (Q3/Q4)
+  4) ELLIPSE or IELTS  -> second corpus for analytic traits / generalization
+
+
+################################################################################
+#  FREELY ACCESSIBLE
+################################################################################
+
+--------------------------------------------------------------------------------
+1. ASAP 2.0  (Learning Agency Lab — Automated Essay Scoring 2.0)
+--------------------------------------------------------------------------------
+What:     ~24,000 student argumentative essays, holistic score 1-6, human-rated.
+          Modern successor to the 2012 ASAP set.
+Use for:  Primary holistic rubric-scoring benchmark (Q1, Q2).
+Cost:     FREE.  License: CC BY (attribution).
+Access:   Free Kaggle account.
+Links:    https://www.kaggle.com/competitions/learning-agency-lab-automated-essay-scoring-2
+          https://the-learning-agency-lab.com/learning-exchange/asap-2-0-dataset/
+
+--------------------------------------------------------------------------------
+2. DREsS  (Dataset for Rubric-based Essay Scoring on EFL Writing)
+--------------------------------------------------------------------------------
+What:     ~48.9K samples total across 3 sub-sets; core DREsS_New = 2.3K real-classroom
+          EFL undergrad essays scored by experts. Scored 1-5 (0.5 steps) on THREE
+          rubrics: Content, Organization, Language.
+Use for:  BEST fit for Q2 (schema/rubric-based) — rubrics map straight to typed
+          "aspect" fields; explicitly designed for rubric-based AES.
+Cost:     FREE.  License: MIT (after submitting a consent form).
+Access:   Submit consent form on the official site -> redirect to data.
+Links:    https://haneul-yoo.github.io/dress/
+          Paper: https://aclanthology.org/2025.acl-long.659/  (arXiv 2402.16733)
+
+--------------------------------------------------------------------------------
+3. PERSUADE 2.0 / Feedback-Prize  (argument components & effectiveness)
+--------------------------------------------------------------------------------
+What:     25,000+ argumentative essays (grades 6-12), 280,000+ discourse annotations.
+          Components: Lead, Position, Claim, Counterclaim, Rebuttal, Evidence,
+          Concluding Statement.  Effectiveness: Ineffective/Adequate/Effective.
+Use for:  Q3 (citing/identifying components) and Q4 (segmentation -> MLA-parser
+          motivation). Used by the argument-mining paper in papers/.
+Cost:     FREE.  License: CC BY 4.0 (PERSUADE corpus).
+Access:   GitHub (full corpus) + Kaggle (competition splits).
+Links:    Corpus:        https://github.com/scrosseye/PERSUADE_corpus
+          Effectiveness: https://www.kaggle.com/competitions/feedback-prize-effectiveness/overview
+          Segmentation:  https://www.kaggle.com/c/feedback-prize-2021
+
+--------------------------------------------------------------------------------
+4. ELLIPSE  (English Language Learner Insight, Proficiency & Skills Evaluation)
+--------------------------------------------------------------------------------
+What:     ~6,500 ELL essays, 29 prompts, grades 8-12. Overall proficiency + 6
+          analytic traits: Cohesion, Syntax, Vocabulary, Phraseology, Grammar,
+          Conventions. 1.0-5.0 (0.5 steps), two raters. Includes demographics.
+Use for:  Q2 analytic schema fields; generalization; fairness/bias analysis.
+Cost:     FREE.  License: open (see repo).
+Access:   GitHub.
+Link:     https://github.com/scrosseye/ELLIPSE-Corpus
+
+--------------------------------------------------------------------------------
+5. ASAP (original, 2012)  + ASAP++ (trait annotations)
+--------------------------------------------------------------------------------
+What:     ASAP: ~12,978 essays, 8 prompts, grades 7-10, holistic (QWK standard).
+          ASAP++: adds analytic trait scores (content, organization, word choice,
+          sentence fluency, conventions, ...) on the same 8 prompts.
+Use for:  Classic AES baseline (comparability w/ prior work); ASAP++ for Q2 traits.
+Cost:     FREE.  License: Kaggle terms (research) / ASAP++ research use.
+Access:   ASAP -> Kaggle account; ASAP++ -> direct download.
+Links:    ASAP:    https://www.kaggle.com/c/asap-aes/data
+          ASAP++:  https://lwsam.github.io/ASAP++/lrec2018.html
+Note:     ASAP public release is training split only (test labels withheld).
+
+--------------------------------------------------------------------------------
+6. IELTS essay-scoring sets (Hugging Face)
+--------------------------------------------------------------------------------
+What:     (a) KevSun/IELTS_essay_scoring — ~18,000 IELTS essays, scored on 5
+              dimensions: task achievement, coherence/cohesion, vocabulary,
+              grammar, overall. Good multi-dimension analytic data.
+          (b) Jackrong/IELTS-writing-feedback-reasoning — band scores 0-9 (0.5),
+              with step-by-step rubric reasoning (useful for rationale/explainability).
+Use for:  Q2 analytic dimensions; rationale-style outputs; generalization corpus.
+Cost:     FREE.  License: per-dataset on HF (verify each card before publishing).
+Access:   Hugging Face (datasets library / direct).
+Links:    https://huggingface.co/KevSun/IELTS_essay_scoring
+          https://huggingface.co/datasets/Jackrong/IELTS-writing-feedback-reasoning
+Note:     Provenance of some HF IELTS sets is informal — check the data card and
+          licensing before using in a publication.
+
+--------------------------------------------------------------------------------
+7. CLC-FCE  (Cambridge Learner Corpus — First Certificate in English)
+--------------------------------------------------------------------------------
+What:     1,244 ESOL exam scripts (2000-2001), essay-level scores (~1-40), error
+          annotation, L1 + demographic metadata.
+Use for:  Smaller L2 holistic-scoring / robustness set.
+Cost:     FREE for non-commercial research (license agreement).
+Access:   Direct download.
+Links:    https://ilexir.co.uk/datasets/index.html
+          (related task) https://www.cl.cam.ac.uk/research/nl/bea2019st/
+Note:     Small (n=1,244) — secondary set, not primary.
+
+--------------------------------------------------------------------------------
+8. (OPTIONAL) ASAP-SAS — Short Answer Scoring
+--------------------------------------------------------------------------------
+What:     Short constructed-response answers (vs full essays), rubric/key-concept scored.
+Use for:  If the paper also covers short-answer rubric grading (cf. AutoSCORE/GradeHITL).
+Cost:     FREE.  Access: Kaggle account.
+Link:     https://www.kaggle.com/c/asap-sas/data
+
+
+################################################################################
+#  PAID
+################################################################################
+
+--------------------------------------------------------------------------------
+P1. TOEFL11  (ETS Corpus of Non-Native Written English — LDC2014T06)
+--------------------------------------------------------------------------------
+What:     12,100 essays, 11 native-language groups, 8 prompts, proficiency labels
+          (high/medium/low). Raw + tokenized.
+Use for:  L2 benchmark; used by the "Detailed Rubric?" paper in papers/.
+Cost:     PAID — distributed only via the Linguistic Data Consortium (LDC).
+          - Per-corpus NON-MEMBER research license fee: shown only after LDC login
+            ("Login for the applicable fee") — not posted publicly. Budget for a
+            standalone license fee (LDC text corpora typically run in the low
+            hundreds of USD; CONFIRM exact figure after login).
+          - OR obtain via LDC MEMBERSHIP (verified 2026 rates):
+              Not-for-profit / US Gov:  Standard $2,400  | Subscription $3,850
+              For-profit:               Standard $34,000 | Subscription $40,000
+          - FREE if your university/institution is ALREADY an LDC member — check
+            with your library before paying anything.
+Access:   https://catalog.ldc.upenn.edu/LDC2014T06
+          Membership: https://www.ldc.upenn.edu/members/join-ldc
+Recommendation: substitute a FREE L2 set (ELLIPSE or IELTS) unless TOEFL11 is
+          specifically required for comparability — it is the only paid item here.
+
+
+################################################################################
+#  NOTE on the MLA-parser angle (Q4)
+################################################################################
+None of the public AES corpora ship in raw MLA format (header block, in-text
+citations, Works Cited) — they are cleaned plain text. To evaluate the MLA parser:
+  - Curate a small consented MLA-formatted essay set (e.g., from a writing course), OR
+  - Synthesize MLA scaffolding around PERSUADE/ASAP essays for a controlled
+    with/without-parser ablation.
+Flag this as a data-collection task in the paper (Section 4.1 / TODO).
+
+Reliability caveat: all corpora treat human scores as ground truth; report
+inter-rater agreement where provided (ELLIPSE, CLC-FCE, ASAP, DREsS do).
+Publication caveat: re-verify each license on the source page before release —
+HF/Kaggle dataset terms occasionally change.
