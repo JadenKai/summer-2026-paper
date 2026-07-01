@@ -1,0 +1,10 @@
+[project]
+name = "ollama-grading"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "ollama>=0.6.2",
+    "python-dotenv>=1.2.2",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.5.0",
+]

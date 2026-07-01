@@ -1,1 +1,5 @@
 models/
+.env
+.venv/
+__pycache__/
+dataset/
