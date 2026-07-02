@@ -92,8 +92,10 @@ def grade_one(client: Client, model: str, rubric: str, essay: str) -> tuple[int 
         options={"temperature": 0},
     )
     content = resp["message"]["content"].strip()
+    # Some models wrap JSON in markdown fences — strip them before parsing.
+    cleaned = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:
-        score = int(json.loads(content)["score"])
+        score = int(json.loads(cleaned)["score"])
         if SCORE_MIN <= score <= SCORE_MAX:
             return score, content
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
