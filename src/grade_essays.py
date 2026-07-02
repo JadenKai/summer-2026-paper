@@ -2,17 +2,20 @@
 
 Pipeline (single-model, no schema/parser ablation yet — this is the Q1 baseline):
   1. Sample N essays from dataset/ASAP2_0/train.csv (reproducible seed).
-  2. For each essay, send the holistic rubric + essay text to one Ollama model and
+  2. For each essay, send the holistic rubric + essay text to one model and
      ask for an integer holistic score 1-6 via constrained JSON output.
   3. Compare predicted vs. human scores and report accuracy, adjacent accuracy,
      QWK (the ASAP standard metric), Cohen's kappa, MAE, and a confusion matrix.
 
-Uses Ollama Cloud when OLLAMA_KEY is set (default model gpt-oss:20b), else a local
-Ollama server. Mirrors the connection logic in src/ollama_test.py.
+Backend selection (first match wins):
+  - ANTHROPIC_KEY set → Anthropic API (default model claude-opus-4-8)
+  - OLLAMA_KEY set    → Ollama Cloud (default model gpt-oss:20b)
+  - otherwise        → local Ollama server (OLLAMA_HOST, default localhost:11434)
 
 Usage:
     uv run python src/grade_essays.py
     uv run python src/grade_essays.py --n 20 --model gpt-oss:20b --seed 42
+    uv run python src/grade_essays.py --n 20 --model claude-opus-4-8 --seed 42
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
-from ollama import Client
+from ollama import Client as OllamaClient
 from sklearn.metrics import (
     accuracy_score,
     cohen_kappa_score,
@@ -39,16 +42,28 @@ TRAIN_CSV = REPO / "dataset" / "ASAP2_0" / "train.csv"
 RUBRIC_MD = REPO / "dataset" / "ASAP2_0" / "rubric_holistic.md"
 
 DEFAULT_CLOUD_MODEL = "gpt-oss:20b"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
 SCORE_MIN, SCORE_MAX = 1, 6
 
-# JSON schema handed to Ollama's `format` arg to constrain the output.
-RESPONSE_SCHEMA = {
+# JSON schema for Ollama's `format` arg (supports min/max constraints).
+OLLAMA_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
         "score": {"type": "integer", "minimum": SCORE_MIN, "maximum": SCORE_MAX},
         "rationale": {"type": "string"},
     },
     "required": ["score"],
+}
+
+# JSON schema for Anthropic structured output (min/max constraints not supported).
+ANTHROPIC_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "score": {"type": "integer"},
+        "rationale": {"type": "string"},
+    },
+    "required": ["score", "rationale"],
+    "additionalProperties": False,
 }
 
 SYSTEM_PROMPT = (
@@ -58,18 +73,34 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_client() -> tuple[Client, bool]:
-    """Return (client, is_cloud). Uses Ollama Cloud if OLLAMA_KEY is set."""
+def build_client(force: str | None = None) -> tuple[object, str]:
+    """Return (client, backend) where backend is 'anthropic', 'ollama_cloud', or 'ollama_local'.
+
+    force: explicitly select 'anthropic' or 'ollama', bypassing env-var priority.
+    """
     load_dotenv()
-    key = os.getenv("OLLAMA_KEY")
-    if key:
-        client = Client(
+
+    use_anthropic = force == "anthropic" or (
+        force != "ollama" and os.getenv("ANTHROPIC_KEY")
+    )
+
+    if use_anthropic:
+        key = os.getenv("ANTHROPIC_KEY")
+        if not key:
+            sys.exit("--backend anthropic requires ANTHROPIC_KEY in .env")
+        import anthropic
+        return anthropic.Anthropic(api_key=key), "anthropic"
+
+    ollama_key = os.getenv("OLLAMA_KEY")
+    if ollama_key:
+        client = OllamaClient(
             host="https://ollama.com",
-            headers={"Authorization": f"Bearer {key}"},
+            headers={"Authorization": f"Bearer {ollama_key}"},
         )
-        return client, True
+        return client, "ollama_cloud"
+
     host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-    return Client(host=host), False
+    return OllamaClient(host=host), "ollama_local"
 
 
 def build_prompt(rubric: str, essay: str) -> str:
@@ -80,15 +111,21 @@ def build_prompt(rubric: str, essay: str) -> str:
     )
 
 
-def grade_one(client: Client, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
+def grade_one(client: object, backend: str, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
     """Return (predicted_score, raw_content). score is None if unparseable."""
+    if backend == "anthropic":
+        return _grade_one_anthropic(client, model, rubric, essay)
+    return _grade_one_ollama(client, model, rubric, essay)
+
+
+def _grade_one_ollama(client: OllamaClient, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
     resp = client.chat(
         model=model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": build_prompt(rubric, essay)},
         ],
-        format=RESPONSE_SCHEMA,
+        format=OLLAMA_RESPONSE_SCHEMA,
         options={"temperature": 0},
     )
     content = resp["message"]["content"].strip()
@@ -96,6 +133,24 @@ def grade_one(client: Client, model: str, rubric: str, essay: str) -> tuple[int 
     cleaned = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
     try:
         score = int(json.loads(cleaned)["score"])
+        if SCORE_MIN <= score <= SCORE_MAX:
+            return score, content
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        pass
+    return None, content
+
+
+def _grade_one_anthropic(client: object, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
+    resp = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": build_prompt(rubric, essay)}],
+        output_config={"format": {"type": "json_schema", "schema": ANTHROPIC_RESPONSE_SCHEMA}},
+    )
+    content = resp.content[0].text
+    try:
+        score = int(json.loads(content)["score"])
         if SCORE_MIN <= score <= SCORE_MAX:
             return score, content
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
@@ -140,7 +195,9 @@ def report(df: pd.DataFrame, model: str, elapsed: float) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grade ASAP 2.0 essays with one LLM.")
     parser.add_argument("--n", type=int, default=20, help="Number of essays to sample")
-    parser.add_argument("--model", help=f"Ollama model (default {DEFAULT_CLOUD_MODEL} on cloud)")
+    parser.add_argument("--model", help="Model to use (e.g. claude-opus-4-8, gpt-oss:20b)")
+    parser.add_argument("--backend", choices=["anthropic", "ollama"],
+                        help="Force backend (default: anthropic if ANTHROPIC_KEY set, else ollama)")
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed (reproducibility)")
     parser.add_argument("--out", help="Optional CSV path to write per-essay predictions")
     args = parser.parse_args()
@@ -153,17 +210,28 @@ def main() -> None:
     print(f"Sampled {len(df)} essays (seed={args.seed}). Human score distribution:")
     print(df["score"].value_counts().sort_index().to_string())
 
-    client, is_cloud = build_client()
-    model = args.model or (DEFAULT_CLOUD_MODEL if is_cloud else None)
+    client, backend = build_client(force=args.backend)
+    default_model = {
+        "anthropic": DEFAULT_ANTHROPIC_MODEL,
+        "ollama_cloud": DEFAULT_CLOUD_MODEL,
+        "ollama_local": None,
+    }[backend]
+    model = args.model or default_model
     if model is None:
-        sys.exit("No local model resolved — pass --model or set OLLAMA_KEY for cloud.")
-    print(f"\n→ {'Ollama Cloud' if is_cloud else 'local Ollama'} · model={model}\n")
+        sys.exit("No local model resolved — pass --model or set OLLAMA_KEY / ANTHROPIC_KEY.")
+
+    backend_label = {
+        "anthropic": "Anthropic API",
+        "ollama_cloud": "Ollama Cloud",
+        "ollama_local": "local Ollama",
+    }[backend]
+    print(f"\n→ {backend_label} · model={model}\n")
 
     preds: list[int | None] = []
     start = time.perf_counter()
     for i, row in df.iterrows():
         try:
-            score, _ = grade_one(client, model, rubric, row["full_text"])
+            score, _ = grade_one(client, backend, model, rubric, row["full_text"])
         except Exception as exc:  # noqa: BLE001 - keep going, mark as missing
             print(f"  [{i + 1:>2}/{len(df)}] {row['essay_id']}  ERROR: {exc}")
             preds.append(None)
