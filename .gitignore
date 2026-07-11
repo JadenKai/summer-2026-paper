@@ -2,5 +2,5 @@ dataset/
 .env
 models/
 __pycache__/
-run.sh
+test.csv
 .venv/
