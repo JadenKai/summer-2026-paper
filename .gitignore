@@ -1,5 +1,6 @@
-models/
-.env
-.venv/
-__pycache__/
 dataset/
+.env
+models/
+__pycache__/
+run.sh
+.venv/
