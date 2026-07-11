@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -40,6 +41,7 @@ from sklearn.metrics import (
 REPO = Path(__file__).resolve().parents[1]
 TRAIN_CSV = REPO / "dataset" / "ASAP2_0" / "train.csv"
 RUBRIC_MD = REPO / "dataset" / "ASAP2_0" / "rubric_holistic.md"
+RUNS_CSV = REPO / "results" / "runs.csv"
 
 DEFAULT_CLOUD_MODEL = "gpt-oss:20b"
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
@@ -158,8 +160,8 @@ def _grade_one_anthropic(client: object, model: str, rubric: str, essay: str) ->
     return None, content
 
 
-def report(df: pd.DataFrame, model: str, elapsed: float) -> None:
-    """Print agreement metrics for rows with a valid prediction."""
+def report(df: pd.DataFrame, model: str, elapsed: float) -> dict:
+    """Print agreement metrics and return them as a dict."""
     ok = df.dropna(subset=["pred"]).copy()
     ok["pred"] = ok["pred"].astype(int)
     y_true, y_pred = ok["score"].to_numpy(), ok["pred"].to_numpy()
@@ -170,6 +172,7 @@ def report(df: pd.DataFrame, model: str, elapsed: float) -> None:
     qwk = cohen_kappa_score(y_true, y_pred, weights="quadratic", labels=range(SCORE_MIN, SCORE_MAX + 1))
     kappa = cohen_kappa_score(y_true, y_pred, labels=range(SCORE_MIN, SCORE_MAX + 1))
     mae = mean_absolute_error(y_true, y_pred)
+    bias = (y_pred - y_true).mean()
 
     print("\n" + "=" * 60)
     print(f"RESULTS  ·  model={model}  ·  N={n_total} ({n_ok} parsed)")
@@ -179,7 +182,7 @@ def report(df: pd.DataFrame, model: str, elapsed: float) -> None:
     print(f"  QWK (quadratic κ)   : {qwk:.3f}   <- ASAP standard metric")
     print(f"  Cohen's κ (unweighted): {kappa:.3f}")
     print(f"  MAE                 : {mae:.3f}")
-    print(f"  Bias (mean pred-true): {(y_pred - y_true).mean():+.3f}")
+    print(f"  Bias (mean pred-true): {bias:+.3f}")
     print(f"  Total wall time     : {elapsed:.1f}s  ({elapsed / n_total:.1f}s/essay)")
 
     labels = list(range(SCORE_MIN, SCORE_MAX + 1))
@@ -191,6 +194,13 @@ def report(df: pd.DataFrame, model: str, elapsed: float) -> None:
     if n_ok < n_total:
         print(f"\n  WARNING: {n_total - n_ok} essay(s) had unparseable output (excluded).")
 
+    return dict(
+        qwk=qwk, exact_acc=exact, adj_acc=adjacent,
+        kappa=kappa, mae=mae, bias=bias,
+        n_parsed=n_ok, n_total=n_total,
+        s_per_essay=elapsed / n_total, elapsed_s=elapsed,
+    )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Grade ASAP 2.0 essays with one LLM.")
@@ -199,7 +209,6 @@ def main() -> None:
     parser.add_argument("--backend", choices=["anthropic", "ollama"],
                         help="Force backend (default: anthropic if ANTHROPIC_KEY set, else ollama)")
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed (reproducibility)")
-    parser.add_argument("--out", help="Optional CSV path to write per-essay predictions")
     args = parser.parse_args()
 
     if not TRAIN_CSV.exists():
@@ -242,12 +251,20 @@ def main() -> None:
     elapsed = time.perf_counter() - start
 
     df["pred"] = preds
-    report(df, model, elapsed)
+    metrics = report(df, model, elapsed)
 
-    if args.out:
-        out = Path(args.out)
-        df[["essay_id", "score", "pred"]].to_csv(out, index=False)
-        print(f"\nWrote per-essay predictions to {out}")
+    RUNS_CSV.parent.mkdir(exist_ok=True)
+    row = {"timestamp": datetime.now().isoformat(timespec="seconds"),
+           "model": model, "n": args.n, "seed": args.seed, **metrics}
+    header = not RUNS_CSV.exists()
+    pd.DataFrame([row]).to_csv(RUNS_CSV, mode="a", header=header, index=False)
+    print(f"\nAppended run to {RUNS_CSV}")
+
+    safe_name = model.replace(":", "-").replace("/", "-")
+    essay_csv = REPO / "results" / "csv" / f"{safe_name}.csv"
+    essay_csv.parent.mkdir(parents=True, exist_ok=True)
+    df[["essay_id", "score", "pred"]].to_csv(essay_csv, index=False)
+    print(f"Wrote per-essay predictions to {essay_csv}")
 
 
 if __name__ == "__main__":
