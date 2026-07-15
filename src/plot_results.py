@@ -1,10 +1,13 @@
 """Generate seaborn plots from grading run results.
 
-Reads results/runs.csv (written by grade_essays.py) and results/model_params.csv
-(created/updated interactively). Produces three charts:
-  - QWK by model (horizontal bar, sorted by parameter count)
-  - Latency s/essay by model (horizontal bar, sorted by parameter count)
-  - Parameter count vs QWK (scatter with model labels)
+Reads results/runs.csv (written by grade_essays.py), the per-essay predictions in
+results/csv/<model>.csv, and results/model_params.csv (created/updated interactively).
+Produces three kinds of charts:
+  - Per-model score distribution: for each ground-truth score (1-6), the distribution of
+    the model's predicted scores, overlaid and color-coded (seaborn histogram + KDE).
+    One PNG per model.
+  - Metric table: model x {MAE, adjacent accuracy, parameters, eval time}.
+  - MAE vs. parameter-count bubble plot (bubble size = eval time s/essay).
 
 Usage:
     uv run python src/plot_results.py
@@ -19,12 +22,22 @@ import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
 REPO = Path(__file__).resolve().parents[1]
 RUNS_CSV = REPO / "results" / "runs.csv"
 PARAMS_CSV = REPO / "results" / "model_params.csv"
+ESSAY_CSV_DIR = REPO / "results" / "csv"
+
+SCORE_MIN, SCORE_MAX = 1, 6
+SCORES = list(range(SCORE_MIN, SCORE_MAX + 1))
+
+
+def safe_model_name(model: str) -> str:
+    """Match the sanitization grade_essays.py uses for per-essay CSV filenames."""
+    return model.replace(":", "-").replace("/", "-")
 
 
 def load_params() -> pd.DataFrame:
@@ -57,66 +70,182 @@ def prompt_missing_params(models: list[str], params_df: pd.DataFrame) -> pd.Data
     return params_df
 
 
+def load_essay_preds(model: str) -> pd.DataFrame | None:
+    """Load per-essay (score, pred) for a model, or None if the file is missing."""
+    path = ESSAY_CSV_DIR / f"{safe_model_name(model)}.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, usecols=["essay_id", "score", "pred"])
+    df = df.dropna(subset=["pred"]).copy()
+    df["score"] = df["score"].astype(int)
+    df["pred"] = df["pred"].astype(int)
+    return df
+
+
 def build_plot_df(runs: pd.DataFrame, params: pd.DataFrame) -> pd.DataFrame:
     # Average metrics across multiple runs of the same model.
     agg = (
         runs.groupby("model", as_index=False)
-        .agg(qwk=("qwk", "mean"), s_per_essay=("s_per_essay", "mean"))
+        .agg(
+            mae=("mae", "mean"),
+            adj_acc=("adj_acc", "mean"),
+            s_per_essay=("s_per_essay", "mean"),
+        )
     )
     merged = agg.merge(params, on="model", how="left")
     return merged.sort_values("params_b").reset_index(drop=True)
 
 
-def plot_qwk(df: pd.DataFrame, out_dir: Path) -> None:
-    fig, ax = plt.subplots(figsize=(7, max(3, 0.5 * len(df))))
-    sns.barplot(data=df, x="qwk", y="model", orient="h", ax=ax, color="#4C72B0")
-    ax.axvline(0.70, color="crimson", linewidth=1.2, linestyle="--", label="QWK = 0.70 threshold")
-    ax.set_xlim(0, 1)
-    ax.set_xlabel("QWK (quadratic weighted κ)")
-    ax.set_ylabel("Model")
-    ax.set_title("Eval Accuracy by Model")
-    ax.legend(fontsize=8)
-    sns.despine(left=True)
-    fig.tight_layout()
-    path = out_dir / "qwk_by_model.png"
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    print(f"  Saved {path}")
+def plot_score_distribution(model: str, preds: pd.DataFrame, out_dir: Path) -> None:
+    """Grouped bars: one group per ground-truth score, 6 bars = predicted-score counts.
 
+    Within each ground-truth group the model's predicted-score distribution is shown as
+    6 side-by-side bars (colored by predicted score).
+    """
+    # Distinct qualitative colors so adjacent predicted scores are easy to tell apart.
+    palette = sns.color_palette("deep", len(SCORES))
+    n_pred = len(SCORES)
+    group_width = 0.82
+    bar_width = group_width / n_pred
 
-def plot_latency(df: pd.DataFrame, out_dir: Path) -> None:
-    fig, ax = plt.subplots(figsize=(7, max(3, 0.5 * len(df))))
-    sns.barplot(data=df, x="s_per_essay", y="model", orient="h", ax=ax, color="#55A868")
-    ax.set_xlabel("Seconds per essay")
-    ax.set_ylabel("Model")
-    ax.set_title("Eval Time by Model")
-    sns.despine(left=True)
-    fig.tight_layout()
-    path = out_dir / "latency_by_model.png"
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-    print(f"  Saved {path}")
+    fig, ax = plt.subplots(figsize=(11, 6))
+    group_totals = []
+    for gi, g in enumerate(SCORES):  # x-axis groups = ground-truth score
+        grp = preds[preds["score"] == g]
+        group_totals.append(len(grp))
+        counts = np.array([(grp["pred"] == p).sum() for p in SCORES], dtype=float)
+        offsets = (np.arange(n_pred) - (n_pred - 1) / 2) * bar_width
+        xs = gi + offsets
+        for pi in range(n_pred):
+            ax.bar(xs[pi], counts[pi], width=bar_width * 0.92,
+                   color=palette[pi], edgecolor="white", linewidth=0.4,
+                   label=str(SCORES[pi]) if gi == 0 else None)
 
-
-def plot_params_vs_qwk(df: pd.DataFrame, out_dir: Path) -> None:
-    df_valid = df.dropna(subset=["params_b"])
-    if df_valid.empty:
-        print("  Skipping params_vs_qwk — no param counts recorded yet.")
-        return
-    fig, ax = plt.subplots(figsize=(7, 5))
-    sns.scatterplot(data=df_valid, x="params_b", y="qwk", ax=ax, s=80, color="#C44E52")
-    for _, row in df_valid.iterrows():
-        ax.annotate(row["model"], (row["params_b"], row["qwk"]),
-                    textcoords="offset points", xytext=(6, 0), fontsize=7, va="center")
-    ax.axhline(0.70, color="crimson", linewidth=1.0, linestyle="--", label="QWK = 0.70 threshold")
-    ax.set_xscale("log")
-    ax.set_xlabel("Parameter count (billions, log scale)")
-    ax.set_ylabel("QWK")
-    ax.set_title("Parameter Count vs Eval Accuracy")
-    ax.legend(fontsize=8)
+    ax.set_xticks(range(n_pred))
+    ax.set_xticklabels([f"{g}\n(n={t})" for g, t in zip(SCORES, group_totals)])
+    ax.set_xlabel("Ground-truth score")
+    ax.set_ylabel("Essay count")
+    ax.set_title(f"Predicted-score distribution per ground-truth score — {model}")
+    ax.legend(title="Predicted score", ncol=1, bbox_to_anchor=(1.01, 1), loc="upper left")
     sns.despine()
     fig.tight_layout()
-    path = out_dir / "params_vs_qwk.png"
+    path = out_dir / f"score_dist_{safe_model_name(model)}.png"
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved {path}")
+
+
+def plot_human_vs_model(model: str, preds: pd.DataFrame, out_dir: Path) -> None:
+    """Two bars per score: how many essays humans gave each score vs. how many the model did."""
+    human_counts = np.array([(preds["score"] == s).sum() for s in SCORES], dtype=float)
+    model_counts = np.array([(preds["pred"] == s).sum() for s in SCORES], dtype=float)
+    x = np.arange(len(SCORES))
+    bar_width = 0.4
+
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    ax.bar(x - bar_width / 2, human_counts, width=bar_width,
+           color="#4C72B0", edgecolor="white", linewidth=0.4, label="Human")
+    ax.bar(x + bar_width / 2, model_counts, width=bar_width,
+           color="#DD8452", edgecolor="white", linewidth=0.4, label="Model")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(SCORES)
+    ax.set_xlabel("Score")
+    ax.set_ylabel("Essay count")
+    ax.set_title(f"Human vs. model score counts — {model}")
+    ax.legend(title="Assigned by")
+    sns.despine()
+    fig.tight_layout()
+    path = out_dir / f"human_vs_model_{safe_model_name(model)}.png"
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    print(f"  Saved {path}")
+
+
+def plot_metric_table(df: pd.DataFrame, out_dir: Path) -> None:
+    columns = ["MAE", "Adjacent accuracy", "Parameters (B)", "Eval time (s/essay)"]
+
+    def fmt_params(v: float) -> str:
+        return "—" if pd.isna(v) else f"{v:.1f}"
+
+    cell_text = [
+        [
+            f"{row['mae']:.3f}",
+            f"{row['adj_acc']:.3f}",
+            fmt_params(row["params_b"]),
+            f"{row['s_per_essay']:.2f}",
+        ]
+        for _, row in df.iterrows()
+    ]
+    row_labels = df["model"].tolist()
+
+    csv_df = pd.DataFrame(cell_text, columns=columns)
+    csv_df.insert(0, "Model", row_labels)
+    csv_path = out_dir / "metrics_table.csv"
+    csv_df.to_csv(csv_path, index=False)
+    print(f"  Saved {csv_path}")
+
+    fig, ax = plt.subplots(figsize=(9, max(1.5, 0.55 * len(df) + 0.8)))
+    ax.axis("off")
+    table = ax.table(
+        cellText=cell_text,
+        rowLabels=row_labels,
+        colLabels=columns,
+        cellLoc="center",
+        rowLoc="center",
+        loc="center",
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 1.4)
+    # Bold the header row and row labels.
+    for (r, _c), cell in table.get_celld().items():
+        if r == 0:
+            cell.set_text_props(fontweight="bold")
+    ax.set_title("Model metrics", pad=12)
+    fig.tight_layout()
+    path = out_dir / "metrics_table.png"
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved {path}")
+
+
+def plot_mae_params_bubble(df: pd.DataFrame, out_dir: Path) -> None:
+    df_valid = df.dropna(subset=["params_b"])
+    if df_valid.empty:
+        print("  Skipping mae_vs_params_bubble — no param counts recorded yet.")
+        return
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.scatterplot(
+        data=df_valid,
+        x="mae",
+        y="params_b",
+        size="s_per_essay",
+        sizes=(40, 400),
+        color="#4C72B0",
+        alpha=0.7,
+        legend="brief",
+        ax=ax,
+    )
+    for _, row in df_valid.iterrows():
+        ax.annotate(
+            row["model"],
+            (row["mae"], row["params_b"]),
+            textcoords="offset points",
+            xytext=(6, 0),
+            fontsize=7,
+            va="center",
+        )
+    ax.set_yscale("log")
+    ax.set_xlabel("MAE (mean absolute error)")
+    ax.set_ylabel("Parameter count (billions, log scale)")
+    ax.set_title("MAE vs. Parameter Count (bubble size = eval time s/essay)")
+    legend = ax.get_legend()
+    if legend is not None:
+        legend.set_title("Eval time (s/essay)")
+    sns.despine()
+    fig.tight_layout()
+    path = out_dir / "mae_vs_params_bubble.png"
     fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"  Saved {path}")
@@ -149,12 +278,20 @@ def main() -> None:
 
     df = build_plot_df(runs, params)
     print(f"\nPlotting {len(df)} model(s):")
-    print(df[["model", "params_b", "qwk", "s_per_essay"]].to_string(index=False))
+    print(df[["model", "params_b", "mae", "adj_acc", "s_per_essay"]].to_string(index=False))
     print()
 
-    plot_qwk(df, out_dir)
-    plot_latency(df, out_dir)
-    plot_params_vs_qwk(df, out_dir)
+    print("Per-model score distributions:")
+    for model in df["model"]:
+        preds = load_essay_preds(model)
+        if preds is None:
+            print(f"  Skipping {model} — no per-essay CSV in {ESSAY_CSV_DIR}.")
+            continue
+        plot_score_distribution(model, preds, out_dir)
+        plot_human_vs_model(model, preds, out_dir)
+
+    plot_metric_table(df, out_dir)
+    plot_mae_params_bubble(df, out_dir)
 
     print("\nDone.")
 

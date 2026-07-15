@@ -145,7 +145,7 @@ def _grade_one_ollama(client: OllamaClient, model: str, rubric: str, essay: str)
 def _grade_one_anthropic(client: object, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
     resp = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=8192,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(rubric, essay)}],
         output_config={"format": {"type": "json_schema", "schema": ANTHROPIC_RESPONSE_SCHEMA}},
