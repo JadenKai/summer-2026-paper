@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -120,6 +121,59 @@ def grade_one(client: object, backend: str, model: str, rubric: str, essay: str)
     return _grade_one_ollama(client, model, rubric, essay)
 
 
+def _parse_score(content: str) -> int | None:
+    """Extract a valid score from raw model output using progressively looser strategies."""
+    text = content.strip()
+
+    def valid(s: int) -> bool:
+        return SCORE_MIN <= s <= SCORE_MAX
+
+    def extract_from_obj(obj: object) -> int | None:
+        if isinstance(obj, (int, float)):
+            s = int(obj)
+            return s if valid(s) else None
+        if isinstance(obj, dict):
+            raw = obj.get("score") or obj.get("Score") or obj.get("SCORE")
+            if raw is not None:
+                try:
+                    s = int(float(raw))
+                    return s if valid(s) else None
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+    # 1. Strip markdown fences, then try full JSON parse (case-insensitive key, float-safe).
+    cleaned = re.sub(r"^```json\s*|^```\s*|```\s*$", "", text, flags=re.MULTILINE).strip()
+    try:
+        result = extract_from_obj(json.loads(cleaned))
+        if result is not None:
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Find any JSON object anywhere in the response and parse it.
+    for m in re.finditer(r"\{[^{}]*\}", text, re.DOTALL):
+        try:
+            result = extract_from_obj(json.loads(m.group()))
+            if result is not None:
+                return result
+        except json.JSONDecodeError:
+            continue
+
+    # 3. Find "score": <number> anywhere in the text.
+    m = re.search(r'"[Ss][Cc][Oo][Rr][Ee]"\s*:\s*([0-9]+(?:\.[0-9]+)?)', text)
+    if m:
+        s = int(float(m.group(1)))
+        if valid(s):
+            return s
+
+    # 4. Find a standalone digit 1–6 (word boundary) — catches plain "3" or "Score: 4".
+    for m in re.finditer(r'(?<!\d)([1-6])(?!\d)', text):
+        return int(m.group(1))
+
+    return None
+
+
 def _grade_one_ollama(client: OllamaClient, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
     resp = client.chat(
         model=model,
@@ -131,21 +185,13 @@ def _grade_one_ollama(client: OllamaClient, model: str, rubric: str, essay: str)
         options={"temperature": 0},
     )
     content = resp["message"]["content"].strip()
-    # Some models wrap JSON in markdown fences — strip them before parsing.
-    cleaned = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-    try:
-        score = int(json.loads(cleaned)["score"])
-        if SCORE_MIN <= score <= SCORE_MAX:
-            return score, content
-    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-        pass
-    return None, content
+    return _parse_score(content), content
 
 
 def _grade_one_anthropic(client: object, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
     resp = client.messages.create(
         model=model,
-        max_tokens=8192,
+        max_tokens=16384,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(rubric, essay)}],
         output_config={"format": {"type": "json_schema", "schema": ANTHROPIC_RESPONSE_SCHEMA}},
@@ -209,6 +255,8 @@ def main() -> None:
     parser.add_argument("--backend", choices=["anthropic", "ollama"],
                         help="Force backend (default: anthropic if ANTHROPIC_KEY set, else ollama)")
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed (reproducibility)")
+    parser.add_argument("--verbose", action="store_true",
+                        help="Print raw model output for unparseable responses")
     args = parser.parse_args()
 
     if not TRAIN_CSV.exists():
