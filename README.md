@@ -111,6 +111,13 @@ Full shortlist with prices, licenses, and links: [`datasets.txt`](datasets.txt).
 - `models/` is a **Python virtualenv** with Hugging Face tooling (`hf`, `tiny-agents`, etc.) —
   it is tooling for pulling models/datasets, **not** project source (has its own `.gitignore`).
 - Activate: `source models/bin/activate` (then `hf`, `python`, etc.).
+- **Self-hosted models (HF + vLLM):** `HF_TOKEN` in `.env` authenticates Hugging Face pulls.
+  `src/pull_model.py <repo_id>` pre-stages a snapshot into `models_cache/` (optional — `vllm
+  serve` can pull on its own too). `./serve_vllm.sh <model-path-or-repo-id>` launches a vLLM
+  OpenAI-compatible server (needs `vllm` installed on a GPU host — not part of this uv env, see
+  `models.md` for hardware notes per model tier). Then grade with
+  `uv run python src/grade_essays.py --backend vllm --model <repo_id>` (targets `VLLM_HOST`,
+  default `http://localhost:8000`).
 
 ---
 

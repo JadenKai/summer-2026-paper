@@ -1,6 +1,7 @@
 dataset/
 .env
 models/
+models_cache/
 __pycache__/
 results/
 .venv/

@@ -7,15 +7,20 @@ Pipeline (single-model, no schema/parser ablation yet — this is the Q1 baselin
   3. Compare predicted vs. human scores and report accuracy, adjacent accuracy,
      QWK (the ASAP standard metric), Cohen's kappa, MAE, and a confusion matrix.
 
-Backend selection (first match wins):
+Backend selection (first match wins unless --backend forces one):
   - ANTHROPIC_KEY set → Anthropic API (default model claude-opus-4-8)
   - OLLAMA_KEY set    → Ollama Cloud (default model gpt-oss:20b)
   - otherwise        → local Ollama server (OLLAMA_HOST, default localhost:11434)
+
+  --backend vllm always opts in to a self-hosted vLLM OpenAI-compatible server
+  (VLLM_HOST, default http://localhost:8000) — see src/pull_model.py to fetch
+  weights from Hugging Face (HF_TOKEN) and serve_vllm.sh to launch the server.
 
 Usage:
     uv run python src/grade_essays.py
     uv run python src/grade_essays.py --n 20 --model gpt-oss:20b --seed 42
     uv run python src/grade_essays.py --n 20 --model claude-opus-4-8 --seed 42
+    uv run python src/grade_essays.py --n 20 --backend vllm --model Qwen/Qwen3-8B
 """
 
 from __future__ import annotations
@@ -77,11 +82,20 @@ SYSTEM_PROMPT = (
 
 
 def build_client(force: str | None = None) -> tuple[object, str]:
-    """Return (client, backend) where backend is 'anthropic', 'ollama_cloud', or 'ollama_local'.
+    """Return (client, backend): 'anthropic', 'ollama_cloud', 'ollama_local', or 'vllm'.
 
-    force: explicitly select 'anthropic' or 'ollama', bypassing env-var priority.
+    force: explicitly select 'anthropic', 'ollama', or 'vllm', bypassing env-var
+    priority. 'vllm' is never auto-selected — it must be requested explicitly,
+    since it targets a self-hosted server rather than a keyed cloud API.
     """
     load_dotenv()
+
+    if force == "vllm":
+        import openai
+        host = os.getenv("VLLM_HOST", "http://localhost:8000")
+        base_url = host if host.rstrip("/").endswith("/v1") else f"{host.rstrip('/')}/v1"
+        client = openai.OpenAI(base_url=base_url, api_key=os.getenv("VLLM_API_KEY", "EMPTY"))
+        return client, "vllm"
 
     use_anthropic = force == "anthropic" or (
         force != "ollama" and os.getenv("ANTHROPIC_KEY")
@@ -118,6 +132,8 @@ def grade_one(client: object, backend: str, model: str, rubric: str, essay: str)
     """Return (predicted_score, raw_content). score is None if unparseable."""
     if backend == "anthropic":
         return _grade_one_anthropic(client, model, rubric, essay)
+    if backend == "vllm":
+        return _grade_one_vllm(client, model, rubric, essay)
     return _grade_one_ollama(client, model, rubric, essay)
 
 
@@ -206,6 +222,22 @@ def _grade_one_anthropic(client: object, model: str, rubric: str, essay: str) ->
     return None, content
 
 
+def _grade_one_vllm(client: object, model: str, rubric: str, essay: str) -> tuple[int | None, str]:
+    """Grade via a self-hosted vLLM OpenAI-compatible server, using guided decoding
+    (vLLM's `guided_json` extra param) to constrain output to the score schema."""
+    resp = client.chat.completions.create(
+        model=model,
+        temperature=0,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_prompt(rubric, essay)},
+        ],
+        extra_body={"guided_json": OLLAMA_RESPONSE_SCHEMA},
+    )
+    content = resp.choices[0].message.content.strip()
+    return _parse_score(content), content
+
+
 def report(df: pd.DataFrame, model: str, elapsed: float) -> dict:
     """Print agreement metrics and return them as a dict."""
     ok = df.dropna(subset=["pred"]).copy()
@@ -252,8 +284,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Grade ASAP 2.0 essays with one LLM.")
     parser.add_argument("--n", type=int, default=20, help="Number of essays to sample")
     parser.add_argument("--model", help="Model to use (e.g. claude-opus-4-8, gpt-oss:20b)")
-    parser.add_argument("--backend", choices=["anthropic", "ollama"],
-                        help="Force backend (default: anthropic if ANTHROPIC_KEY set, else ollama)")
+    parser.add_argument("--backend", choices=["anthropic", "ollama", "vllm"],
+                        help="Force backend (default: anthropic if ANTHROPIC_KEY set, else ollama; "
+                             "vllm targets VLLM_HOST, default http://localhost:8000)")
     parser.add_argument("--seed", type=int, default=42, help="Sampling seed (reproducibility)")
     parser.add_argument("--verbose", action="store_true",
                         help="Print raw model output for unparseable responses")
@@ -272,15 +305,18 @@ def main() -> None:
         "anthropic": DEFAULT_ANTHROPIC_MODEL,
         "ollama_cloud": DEFAULT_CLOUD_MODEL,
         "ollama_local": None,
+        "vllm": None,
     }[backend]
     model = args.model or default_model
     if model is None:
-        sys.exit("No local model resolved — pass --model or set OLLAMA_KEY / ANTHROPIC_KEY.")
+        sys.exit("No local model resolved — pass --model (the repo id/path vLLM is serving, "
+                 "or an installed Ollama model) or set OLLAMA_KEY / ANTHROPIC_KEY.")
 
     backend_label = {
         "anthropic": "Anthropic API",
         "ollama_cloud": "Ollama Cloud",
         "ollama_local": "local Ollama",
+        "vllm": "vLLM server",
     }[backend]
     print(f"\n→ {backend_label} · model={model}\n")
 
